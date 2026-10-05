@@ -8,7 +8,7 @@ from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import ConfigDict, field_validator
 
-from ._core import check_space
+from ._core import check_space, made
 
 
 def _document(memory: Any) -> Document:
@@ -44,13 +44,13 @@ class GeniffyRetriever(BaseRetriever):
     def _mem(self) -> Any:
         if self.client is None:
             from geniffy import Geniffy
-            self.client = Geniffy()
+            self.client = made(Geniffy)
         return self.client if self.space is None else self.client.space(self.space)
 
     def _amem(self) -> Any:
         if self.async_client is None:
             from geniffy import AsyncGeniffy
-            self.async_client = AsyncGeniffy()
+            self.async_client = made(AsyncGeniffy)
         return self.async_client if self.space is None else self.async_client.space(self.space)
 
     def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> List[Document]:

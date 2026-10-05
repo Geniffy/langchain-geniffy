@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional, Union
 
 Space = Union[str, None, Callable[[Any], Optional[str]]]
+NAME = "langchain-geniffy"
 
 _NO_SPACE = (
     "Geniffy needs a space: the user this is for, such as space=lambda runtime: f\"user_{runtime.context.id}\". "
@@ -75,3 +76,13 @@ def last_of(messages: Any, kind: str) -> str:
         if getattr(message, "type", None) == kind:
             return text_of(message)
     return ""
+
+
+def made(cls: Any) -> Any:
+    """A client of the geniffy SDK, named after this package, so the Requests page in the Geniffy app shows
+    which integration made each call. A geniffy before 0.2.0 has no name to give, and makes a plain client."""
+    from . import __version__
+    try:
+        return cls(integration=f"{NAME}/{__version__}")
+    except TypeError:
+        return cls()

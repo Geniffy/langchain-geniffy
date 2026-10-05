@@ -5,7 +5,7 @@ from typing import Any, List
 
 from langchain.tools import ToolRuntime, tool
 
-from ._core import Space, bound, require_space, space_for
+from ._core import Space, bound, made, require_space, space_for
 
 
 def geniffy_tools(*, space: Space = ..., client: Any = None, async_client: Any = None) -> List[Any]:
@@ -21,13 +21,13 @@ def geniffy_tools(*, space: Space = ..., client: Any = None, async_client: Any =
     def sync_mem(runtime: Any) -> Any:
         if clients["sync"] is None:
             from geniffy import Geniffy
-            clients["sync"] = Geniffy()
+            clients["sync"] = made(Geniffy)
         return bound(clients["sync"], space_for(space, runtime))
 
     def async_mem(runtime: Any) -> Any:
         if clients["async"] is None:
             from geniffy import AsyncGeniffy
-            clients["async"] = AsyncGeniffy()
+            clients["async"] = made(AsyncGeniffy)
         return bound(clients["async"], space_for(space, runtime))
 
     async def arecall(query: str, runtime: ToolRuntime[Any]) -> str:

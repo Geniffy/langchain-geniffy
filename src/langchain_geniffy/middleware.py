@@ -9,7 +9,7 @@ from typing import Any, Callable, Optional, Tuple
 
 from langchain.agents.middleware import AgentMiddleware
 
-from ._core import Space, bound, last_of, require_space, space_for
+from ._core import Space, bound, last_of, made, require_space, space_for
 
 logger = logging.getLogger("langchain_geniffy")
 
@@ -78,13 +78,13 @@ class GeniffyMemory(AgentMiddleware):
     def _sync(self) -> Any:
         if self._client is None:
             from geniffy import Geniffy
-            self._client = Geniffy()
+            self._client = made(Geniffy)
         return self._client
 
     def _async(self) -> Any:
         if self._async_client is None:
             from geniffy import AsyncGeniffy
-            self._async_client = AsyncGeniffy()
+            self._async_client = made(AsyncGeniffy)
         return self._async_client
 
     def _with_memory(self, request: Any, context: Optional[str]) -> Any:
