@@ -82,7 +82,8 @@ docs[0].metadata    # {"id": ..., "kind": "people", "about": "Priya Nair", "said
 ## One space per user
 
 `space` is required: the user this is for, as a string or a function of the agent's runtime. Each space is a
-memory of its own, and nothing else can read it. `space=None` is your own memory, never your users' data. When
+memory of its own, and nothing else can read it. `space=None` is your own memory, never your users' data. A
+blank space, or None from your function, is refused, so a user with no id never lands in your own memory. When
 a user deletes their account, forget them with `Geniffy().forget_space(...)` from the
 [geniffy](https://pypi.org/project/geniffy/) SDK.
 

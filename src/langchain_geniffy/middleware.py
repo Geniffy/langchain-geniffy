@@ -53,7 +53,8 @@ class GeniffyMemory(AgentMiddleware):
             context_schema=User,
         )
 
-    space        the user: a string, or a function of the runtime (required; None is your own memory)
+    space        the user: a string, or a function of the runtime that names one every time (required;
+                 space=None is your own memory, and a blank space is refused)
     remember     save each finished exchange (default True)
     instructions what the model is told about the memory it is given
     client       a geniffy.Geniffy for sync agents (default: one that reads GENIFFY_API_KEY)

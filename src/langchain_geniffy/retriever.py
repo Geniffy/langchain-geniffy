@@ -6,7 +6,9 @@ from typing import Any, List, Optional
 from langchain_core.callbacks import AsyncCallbackManagerForRetrieverRun, CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
+
+from ._core import check_space
 
 
 def _document(memory: Any) -> Document:
@@ -24,7 +26,7 @@ class GeniffyRetriever(BaseRetriever):
         retriever = GeniffyRetriever(space="user_1042", k=5)
         docs = retriever.invoke("the Lumen renewal")
 
-    space is required: the user whose memory this reads (None is your own memory).
+    space is required: the user whose memory this reads (None is your own memory; a blank one is refused).
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -33,6 +35,11 @@ class GeniffyRetriever(BaseRetriever):
     k: int = 10
     client: Any = None
     async_client: Any = None
+
+    @field_validator("space", mode="before")
+    @classmethod
+    def _one_user(cls, space: Any) -> Optional[str]:
+        return check_space(space)
 
     def _mem(self) -> Any:
         if self.client is None:

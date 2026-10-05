@@ -10,4 +10,5 @@ The first release.
 - `geniffy_tools(space=...)`: `recall` and `remember`, reading the user from the agent's runtime.
 - `GeniffyRetriever(space=...)`: the memories that match a query, as Documents with when each was said and where
   it came from.
-- A space is required, so one user's memory is never written to another's.
+- A space is required, and a blank one (or None from a function of the runtime) is refused, so one user's
+  memory is never written to another's or to your own.

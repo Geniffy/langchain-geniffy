@@ -12,18 +12,37 @@ _NO_SPACE = (
 )
 
 
+def check_space(space: Any) -> Optional[str]:
+    """A space as given: None for your own memory, or a name. A blank name is refused rather than read as
+    your own memory, because it is what an empty user id looks like, and that user would land in it."""
+    if space is None:
+        return None
+    if not isinstance(space, str):
+        raise TypeError(f"space must be a string (or None for your own memory), not {type(space).__name__}")
+    if not space.strip():
+        raise ValueError("space is blank: it would be your own memory, not a user's. " + _NO_SPACE)
+    return space
+
+
 def require_space(space: Any) -> None:
     if space is ...:
         raise TypeError(_NO_SPACE)
+    if not callable(space):
+        check_space(space)
 
 
 def space_for(space: Space, runtime: Any) -> Optional[str]:
-    """The space a call is for: the string, or what the function says for this runtime."""
+    """The space a call is for: the string, or what the function says for this runtime. A function names a
+    user every time: None from it is refused, as a blank name is, since it is what a missing user id looks
+    like. For your own memory, pass space=None itself."""
     if callable(space):
         named = space(runtime)
-        if named is not None and not isinstance(named, str):
-            raise TypeError("space must return a string (or None for your own memory)")
-        return named
+        if named is None:
+            raise ValueError("space returned None for this call, so there is no user to read or save for. "
+                             "For your own memory, pass space=None itself rather than a function.")
+        if not isinstance(named, str):
+            raise TypeError(f"space must return a string, not {type(named).__name__}")
+        return check_space(named)
     return space
 
 

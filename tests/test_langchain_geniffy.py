@@ -99,6 +99,39 @@ def test_a_space_is_required():
         geniffy_tools()
 
 
+def test_a_blank_space_or_a_missing_user_is_refused_never_your_own_memory():
+    """A blank space, or None from a function of the runtime, is what a missing user id looks like: read as
+    no space, that user's words would land in your own memory. Each is refused, and nothing is asked."""
+    for blank in ("", "   "):
+        with pytest.raises(ValueError, match="blank"):
+            GeniffyMemory(space=blank)
+        with pytest.raises(ValueError, match="blank"):
+            geniffy_tools(space=blank)
+        with pytest.raises(ValueError, match="blank"):
+            GeniffyRetriever(space=blank, client=Client())
+    with pytest.raises(TypeError, match="string"):
+        GeniffyMemory(space=1042)
+
+    for missing, refusal in ((lambda runtime: None, "returned None"), (lambda runtime: " ", "blank"),
+                             (lambda runtime: 1042, "must return a string")):
+        client = Client()
+        model = Scripted(replies=["Hello."], seen=[])
+        agent = create_agent(model, context_schema=User, middleware=[GeniffyMemory(space=missing, client=client)])
+        with pytest.raises((ValueError, TypeError), match=refusal):
+            ask(agent)
+        assert client.log == {"context": [], "add": [], "search": []}
+
+    class Own(Mem):
+        def space(self, name: str) -> Mem:
+            raise AssertionError("space=None must not pick a space")
+
+    own = Own({"context": [], "add": [], "search": []}, None)
+    model = Scripted(replies=["Hello."], seen=[])
+    agent = create_agent(model, context_schema=User, middleware=[GeniffyMemory(space=None, client=own)])
+    ask(agent)
+    assert own.log["context"] == [(None, "Who signs the Lumen renewal?")], "space=None is your own memory"
+
+
 def test_the_model_is_given_what_is_known_after_the_apps_own_prompt_and_the_exchange_is_saved():
     client = Client()
     model = Scripted(replies=["Priya Nair signs it."], seen=[])
