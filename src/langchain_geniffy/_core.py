@@ -2,10 +2,17 @@
 message whichever shape LangChain hands it in."""
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Union
+import json
+from typing import Any, Callable, Dict, List, Optional, Union
 
 Space = Union[str, None, Callable[[Any], Optional[str]]]
+Named = Union[str, None, Callable[[Any], Optional[str]]]
 NAME = "langchain-geniffy"
+
+# What Geniffy keeps of a message, so nothing larger is sent: a turn's words, a tool call's input and a tool's output.
+TURN_CHARS = 50_000
+CALL_CHARS = 2_000
+RESULT_CHARS = 4_000
 
 _NO_SPACE = (
     "Geniffy needs a space: the user this is for, such as space=lambda runtime: f\"user_{runtime.context.id}\". "
@@ -76,6 +83,83 @@ def last_of(messages: Any, kind: str) -> str:
         if getattr(message, "type", None) == kind:
             return text_of(message)
     return ""
+
+
+def named(value: Named, runtime: Any, what: str) -> Optional[str]:
+    """A project or a session as given: a string, None, or what a function of the runtime says for this call."""
+    if callable(value):
+        value = value(runtime)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"{what} must be a string, not {type(value).__name__}")
+    return value.strip() or None
+
+
+def turn_start(messages: List[Any]) -> int:
+    """Where the turn being answered starts: just after the last answer before the user's last message, so two
+    messages sent at once are both in it."""
+    human = [i for i, m in enumerate(messages) if getattr(m, "type", None) == "human"]
+    if not human:
+        return 0
+    for i in range(human[-1] - 1, -1, -1):
+        if getattr(messages[i], "type", None) == "ai":
+            return i + 1
+    return 0
+
+
+def title_of(messages: List[Any]) -> Optional[str]:
+    """What to call a saved conversation in the Geniffy app: the start of its first question, on one line."""
+    for m in messages:
+        if getattr(m, "type", None) == "human":
+            words = " ".join(text_of(m).split())
+            if words:
+                return words if len(words) <= 80 else words[:80].rsplit(" ", 1)[0] + "..."
+    return None
+
+
+def _call(call: Any) -> Dict[str, Any]:
+    args = call.get("args")
+    try:
+        shown = json.dumps(args, default=str)
+    except (TypeError, ValueError):
+        shown = str(args)
+    out: Dict[str, Any] = {"name": str(call.get("name") or "tool")[:200],
+                           "args": args if len(shown) <= CALL_CHARS else shown[:CALL_CHARS]}
+    if call.get("id"):
+        out["id"] = str(call["id"])[:200]
+    return out
+
+
+def as_sent(message: Any) -> Optional[Dict[str, Any]]:
+    """A LangChain message as Geniffy reads a conversation: what the user said, what the agent answered with the
+    tools it called, and what each tool returned. System messages are the app's instructions, not something anyone
+    said, and are left out."""
+    kind = getattr(message, "type", None)
+    if kind == "human":
+        out: Dict[str, Any] = {"role": "user", "content": text_of(message)[:TURN_CHARS]}
+        if getattr(message, "name", None):
+            out["name"] = str(message.name)[:200]
+        return out
+    if kind == "ai":
+        out = {"role": "assistant", "content": text_of(message)[:TURN_CHARS]}
+        calls = [_call(c) for c in (getattr(message, "tool_calls", None) or [])[:100] if isinstance(c, dict)]
+        if calls:
+            out["tool_calls"] = calls
+        return out
+    if kind == "tool":
+        out = {"role": "tool", "content": text_of(message)[:RESULT_CHARS]}
+        if getattr(message, "name", None):
+            out["name"] = str(message.name)[:200]
+        if getattr(message, "tool_call_id", None):
+            out["tool_call_id"] = str(message.tool_call_id)[:200]
+        return out
+    return None
+
+
+def said(sent: Dict[str, Any]) -> bool:
+    """Whether a message as sent holds anything: words, a tool call or a tool's output."""
+    return bool(sent.get("content") or sent.get("tool_calls") or sent.get("role") == "tool")
 
 
 def made(cls: Any) -> Any:

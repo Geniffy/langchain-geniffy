@@ -5,8 +5,9 @@
 # Geniffy for LangChain
 
 Give a LangChain agent a memory of each of your users. Add one piece of middleware, and before every call the
-model is told what is known about the user, each line with where it came from; when the agent has its answer,
-the exchange is saved. When nothing is known, the model is told so, and says so instead of guessing.
+model gets the user's briefing: where things stand, what is due, the rules that apply, what happened, and what is
+known that bears on their message. When the agent has its answer, the run is saved, tool calls included, into one
+memory for the whole conversation. When nothing is known, the model is told so, and says so instead of guessing.
 
 [![CI](https://github.com/Geniffy/langchain-geniffy/actions/workflows/ci.yml/badge.svg)](https://github.com/Geniffy/langchain-geniffy/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/langchain-geniffy)](https://pypi.org/project/langchain-geniffy/)
@@ -25,6 +26,7 @@ from dataclasses import dataclass
 
 from langchain.agents import create_agent
 from langchain_geniffy import GeniffyMemory
+from langgraph.checkpoint.memory import InMemorySaver
 
 
 @dataclass
@@ -37,22 +39,39 @@ agent = create_agent(
     system_prompt="You are a helpful assistant.",
     middleware=[GeniffyMemory(space=lambda runtime: f"user_{runtime.context.id}")],
     context_schema=User,
+    checkpointer=InMemorySaver(),                 # or your database's checkpointer
 )
 
 result = agent.invoke(
     {"messages": [{"role": "user", "content": "Who signs the Lumen renewal?"}]},
+    {"configurable": {"thread_id": chat.id}},     # the conversation
     context=User(id=user.id),                     # from your own sign-in
 )
 ```
 
-- **Before each model call**, what is known that bears on the user's last message goes in the system prompt,
-  after your own. In a run with tools, Geniffy is asked once, not once per step.
-- **When the agent has its answer**, the exchange is saved to that user's space.
+- **Before each model call**, the user's briefing goes in the system prompt, after your own: where things stand,
+  what is due or was promised, the rules that apply, what happened, then what is known that bears on their last
+  message, each line dated. In a run with tools, Geniffy is asked once, not once per step.
+- **When the agent has its answer**, the run is saved to that user's space: what they said, each tool the agent
+  called and what it returned, and the answer. A conversation is one memory however long it gets, and each run
+  sends only what is new. Where saving got to is kept in the agent's state, so with a checkpointer nothing is sent
+  twice, across restarts and on every server, and a save that fails goes with the next run.
 - **If Geniffy can't be reached**, the agent goes on without memory, and `on_error` hears about it.
 
-Options: `remember=False` to only read, `instructions` to change what the model is told about the memory, and
-`client` / `async_client` to bring your own `geniffy.Geniffy` / `geniffy.AsyncGeniffy`. Async agents
-(`ainvoke`, `astream`) use the async client.
+Options:
+
+- `project`: the project the agent works on, a string or a function of the runtime. The briefing keeps to it, and
+  what is saved is labelled with it.
+- `session`: the conversation, a string or a function of the runtime, for an app that keeps the history itself
+  instead of in a checkpointer. With neither, each run is a memory of its own.
+- `briefing=False` reads only what bears on the user's last message; `budget_chars` is the most the briefing adds to
+  the prompt (6,000 characters unless you say).
+- `remember=False` to only read, and `instructions` to change what the model is told about the memory.
+- `client` / `async_client` to bring your own `geniffy.Geniffy` / `geniffy.AsyncGeniffy`. Async agents (`ainvoke`,
+  `astream`) use the async client.
+
+An account without the briefing switched on is given what bears on the user's last message instead, and the
+briefing is tried again ten minutes later.
 
 ## Tools
 
@@ -90,7 +109,8 @@ a user deletes their account, forget them with `Geniffy().forget_space(...)` fro
 ## Develop
 
 ```bash
-pip install -e ".[test]" && pytest     # through LangChain's own create_agent, with a scripted model
+pip install -e ".[test]" && pytest     # through LangChain's own create_agent, with a scripted model and the
+                                       # real geniffy client against a stand-in for the API
 ```
 
 ## Security
